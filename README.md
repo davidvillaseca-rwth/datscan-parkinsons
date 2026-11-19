@@ -89,10 +89,14 @@ reference instead of the occipital region. `output/manifest.csv` flags both case
 
 ## Models and results
 
-All numbers are out-of-fold over the full training set.
+All numbers are out-of-fold over the full training set. Lower log loss is better. The first two
+rows are reference points: always predicting the base rate (54.8% pathologic), and a model that
+only sees scanner settings.
 
 | Model | AUC | Log loss | Accuracy |
 |---|---|---|---|
+| Base rate, same prediction for every scan | 0.500 | 0.689 | 0.548 |
+| Scanner settings only (shortcut check, XGBoost) | 0.746 | 0.589 | 0.678 |
 | Logistic regression, 2 SBR features | 0.876 | 0.442 | 0.793 |
 | Logistic regression, 20 features | 0.950 | 0.281 | 0.869 |
 | XGBoost, 20 features | 0.947 | 0.289 | 0.872 |
