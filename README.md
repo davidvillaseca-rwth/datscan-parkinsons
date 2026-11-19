@@ -140,6 +140,23 @@ after seeing these out-of-fold numbers, but it has nothing to fit, so the compar
 The ensemble beats both models on its own because they get different scans wrong. The CNN reads the
 whole 3D shape, and the feature model has more stable probabilities in the middle of the range.
 
+### Confusion matrix
+
+Logit-mean ensemble, out-of-fold, at a 0.5 threshold:
+
+| | Predicted normal | Predicted pathologic | Total |
+|---|---|---|---|
+| Actually normal | 569 | 46 | 615 |
+| Actually pathologic | 82 | 665 | 747 |
+| Total | 651 | 711 | 1,362 |
+
+That's a sensitivity of 0.890 (pathologic scans caught) and a specificity of 0.925 (normal scans
+cleared). A pathologic prediction is right 93.5% of the time, a normal one 87.4%. Misses outnumber
+false alarms, 82 to 46. The two models lean in opposite directions here: the CNN alone has the
+higher sensitivity (0.905 vs 0.857), and the feature model the higher specificity (0.883 vs 0.875).
+If missing a pathologic scan costs more than a false alarm, lowering the threshold trades some
+specificity for sensitivity.
+
 ### Checks against misleading results
 
 Scanner and acquisition settings alone predict the label with AUC 0.75, because the share of
@@ -151,9 +168,8 @@ The data has no patient IDs, so repeat scans of one patient could leak across fo
 check, no two crops correlate above 0.95, so there are no near-duplicates. Different scans of the
 same patient taken at different times wouldn't be caught by this.
 
-The ensemble gets 128 scans wrong at a 0.5 threshold (82 pathologic called normal, 46 normal called
-pathologic). I looked at the most confident errors. Most look like the label and the
-image disagree: scans labelled pathologic with normal comma shapes and high SBR, and scans labelled
+Of the ensemble's 128 errors in the confusion matrix, I looked at the most confident ones. In most of
+them the label and the image disagree: scans labelled pathologic with normal comma shapes and high SBR, and scans labelled
 normal with clearly reduced uptake. The labels are probably clinical diagnoses rather than reads of
 the image, so some of the remaining error is likely a ceiling for any image-only model. Only one of
 the confident errors came from a bad crop.
