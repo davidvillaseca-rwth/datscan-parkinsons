@@ -1,0 +1,14 @@
+# Data and anything derived from it (scans, crops, per-scan labels/predictions) stays local.
+# The dataset belongs to the DrivenData challenge; see README for where to get it.
+output/
+data/
+*.nii
+*.nii.gz
+*.npy
+*.mat
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/

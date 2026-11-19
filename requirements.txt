@@ -1,0 +1,8 @@
+numpy
+scipy
+pandas
+nibabel
+matplotlib
+scikit-image
+scikit-learn
+xgboost
