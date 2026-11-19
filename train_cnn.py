@@ -1,10 +1,11 @@
-"""3D CNN on the striatal SBR crops, 5-fold CV, compared + ensembled with the feature baseline.
+"""3D CNN on the striatal SBR crops, 5-fold CV, compared and ensembled with the feature model.
 
   python train_cnn.py --folds 1 --epochs 5      # smoke test
-  python train_cnn.py                           # full 5-fold CV
-  python train_cnn.py --seeds 3                 # 3 seeds per fold, averaged
+  python train_cnn.py                           # full 5-fold CV, 1 seed, 60 epochs
+  python train_cnn.py --seeds 3 --epochs 80     # the run reported in the README
 
-No early stopping / model selection on the held-out fold: fixed schedule, so the CV score is honest.
+Training follows a fixed schedule with no early stopping, so the held-out fold never decides which
+model is kept and the CV score stays honest. Needs output/features.csv from baseline.py.
 """
 
 from __future__ import annotations
@@ -192,8 +193,15 @@ def main():
 
     done = ~np.isnan(oof_cnn)
     yy = yn[done]
+    def logit(p):
+        p = np.clip(p, 1e-6, 1 - 1e-6)
+        return np.log(p / (1 - p))
+
+    # Averaging probabilities pulls confident predictions towards 0.5, so the probability-mean
+    # ensemble comes out underconfident. Averaging logits keeps it calibrated.
     rows = {"CNN": oof_cnn[done], "logreg features": oof_lr[done],
-            "ensemble (mean prob)": (oof_cnn[done] + oof_lr[done]) / 2}
+            "ensemble (mean prob)": (oof_cnn[done] + oof_lr[done]) / 2,
+            "ensemble (mean logit)": 1 / (1 + np.exp(-(logit(oof_cnn[done]) + logit(oof_lr[done])) / 2))}
     print(f"\n=== out-of-fold over {done.sum()} scans ===")
     print(pd.DataFrame({k: metrics(yy, v) for k, v in rows.items()}).T.round(3).to_string())
     pd.DataFrame({"uid": feats.uid[done], "label": yy, "cnn": oof_cnn[done], "logreg": oof_lr[done]}) \

@@ -1,8 +1,8 @@
 """Feature baseline: hand-crafted striatal features -> logistic regression / XGBoost, repeated stratified CV.
 
 Features come from output/manifest.csv (per-side SBR) plus shape features computed here from the
-crops. The key clinical sign is that DaT loss starts in the posterior putamen (the "comma tail")
-and spreads forward to the caudate, so we measure posterior vs anterior uptake per side.
+crops. In Parkinson's, DaT loss starts in the posterior putamen (the "comma tail") and spreads
+forward to the caudate, so the shape features compare posterior and anterior uptake on each side.
 
   python baseline.py               # main run
   python baseline.py --scanner     # also test adding scanner/acquisition columns (shortcut check)

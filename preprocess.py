@@ -1,17 +1,19 @@
-"""DaT-SPECT preprocessing: raw NIfTI -> fixed-size striatal crop normalized to a reference region.
+"""DaT-SPECT preprocessing: raw NIfTI scan -> fixed-size crop of the striatum, scaled to a reference region.
 
-Python port + redesign of the old MATLAB DataSetMaker pipeline. Only uses numpy/scipy/nibabel,
-all of which exist in the competition runtime, so the same code runs at inference time.
+Needs only numpy, scipy, nibabel and scikit-image, so it also runs inside the competition's
+offline runtime.
 
 Steps per scan:
-  1. Load, reorient to closest canonical RAS.
-  2. Crop to the head bounding box (fast: 256^3 scans are mostly air), resample to 2 mm isotropic.
-  3. Head mask -> eroded "inner head" search region (drops scalp, glands near the surface, ring artifacts).
-  4. Find the striatum: brightest point of the smoothed image inside the search region, restricted
-     to near the head midline; then refine the centre from the hot voxels around it.
-  5. Reference region: occipital box posterior to the striatum -> denominator.
-  6. Output = image / reference - 1 (specific binding ratio map; background ~0, healthy striatum ~2+).
-  7. Fixed crop of CROP_SHAPE voxels around the striatal centre, padded with 0 (= reference level).
+  1. Load and reorient to the closest canonical RAS.
+  2. Crop to the head (256^3 scans are mostly air), resample to 2 mm voxels, smooth with a 2 mm Gaussian.
+  3. Head mask, eroded into an "inner head" search region that leaves out the scalp, glands near
+     the surface and ring artifacts.
+  4. Find the striatum: the brightest smoothed point in the search region, near the midline and
+     55-125 mm below the top of the head; then refine the centre from the hot voxels around it.
+  5. Reference: mean of an occipital box behind the striatum.
+  6. Output = image / reference - 1, a specific binding ratio (SBR) map. Background is ~0 and a
+     healthy striatum ~3-4.
+  7. Cut a CROP_SHAPE crop around the striatal centre, padded with 0 (the reference level).
 """
 
 from __future__ import annotations
@@ -109,9 +111,9 @@ def find_striatum(vol: np.ndarray, head: np.ndarray) -> dict:
     xs = np.arange(vol.shape[0])[:, None, None]
     search = inner & (np.abs(xs - x_mid) <= _mm(40))
 
-    # Vertical prior: across a 150-scan sample the striatum sits 87 +/- 10 mm below the top of
-    # the head (range 70-113 when correct). When the head top is inside the FOV, only search
-    # 55-125 mm below it. Stops faint (severe-PD) striata losing to the skull base / glands.
+    # Vertical prior: across all scans the striatum sits 87 +/- 8 mm below the top of the head.
+    # When the head top is inside the FOV, only search 55-125 mm below it, so a faint striatum
+    # (severe PD) can't lose out to the skull base or the salivary glands.
     zs = np.where(head.any(axis=(0, 1)))[0]
     top_in_fov = bool(zs.max() < vol.shape[2] - 2)
     if top_in_fov:
@@ -194,11 +196,11 @@ def fixed_crop(vol: np.ndarray, center: np.ndarray, shape=CROP_SHAPE, pad=0.0) -
 
 
 def striatal_features(crop: np.ndarray, hot: np.ndarray) -> dict:
-    """Simple per-side features from the SBR crop (for a non-deep baseline).
+    """Per-side SBR features from the crop, used by the feature model.
 
-    Each side is measured in its own half of the crop (not via the >50%-of-peak hot mask, which
-    is empty on a strongly affected side and used to give SBR=0 there). Crop x centre is the
-    midline; RAS so +x = right. top50 ~ peak (caudate-dominated), top500 ~ whole striatum (4 ml)."""
+    Each side is measured in its own half of the crop. The >50%-of-peak hot mask can't be used for
+    this because it is empty on a strongly affected side. The crop's x centre is the midline, and
+    RAS means +x is right. top50 tracks the peak (mostly caudate), top500 the whole striatum (~4 ml)."""
     mid = crop.shape[0] // 2
     feats = {}
     for side, half in (("R", crop[mid:]), ("L", crop[:mid])):

@@ -3,8 +3,8 @@
 Classifying DaT-SPECT brain scans as normal or pathologic (dopamine transporter loss, the imaging
 sign of Parkinson's disease). The pipeline crops the striatum from each scan, puts every scanner on
 the same intensity scale, and then compares two models: logistic regression on hand-built features,
-and a small 3D CNN. Averaging the two gives an out-of-fold AUC of 0.968 and 90.6% accuracy on 1,362
-scans.
+and a small 3D CNN. Averaging the two gives an out-of-fold AUC of 0.968, log loss of 0.232 and
+90.6% accuracy on 1,362 scans.
 
 This started as an entry to DrivenData's
 [DaT Parkinson's Prediction Challenge](https://www.drivendata.org/competitions/311/dat-parkinsons-challenge/).
@@ -102,7 +102,10 @@ only sees scanner settings.
 | XGBoost, 20 features | 0.947 | 0.289 | 0.872 |
 | 3D CNN, 1 seed, 60 epochs | 0.958 | 0.259 | 0.884 |
 | 3D CNN, 3 seeds, 80 epochs | 0.960 | 0.252 | 0.891 |
-| Ensemble (CNN 3 seeds + logistic regression) | 0.968 | 0.241 | 0.906 |
+| Ensemble, mean of probabilities | 0.968 | 0.241 | 0.906 |
+| Ensemble, mean of logits | 0.968 | 0.232 | 0.906 |
+
+Both ensembles combine the 3-seed CNN with the 20-feature logistic regression.
 
 The feature model (`baseline.py`) uses 20 features that don't depend on which side is affected:
 SBR of the weaker and stronger striatum, left/right asymmetry, and per-side shape measured from the
@@ -119,7 +122,23 @@ multiplies intensity by 0.85 to 1.15 to cover differences between sites. Trainin
 number of epochs with no early stopping, so the held-out fold never influences which model is kept.
 Predictions average each scan with its mirror image.
 
-The two models make different mistakes, which is why averaging them beats either one.
+### Calibration
+
+![Calibration curves](assets/calibration.png)
+
+Log loss rewards probabilities that mean what they say, so I checked calibration as well as ranking.
+Both single models are close to the diagonal, with an expected calibration error (ECE) of 0.024 for
+the CNN and 0.027 for the feature model.
+
+Averaging their probabilities makes the ensemble underconfident. When one model is sure and the
+other less so, the mean lands in between: scans the ensemble rated about 7% were pathologic 1% of
+the time, and scans it rated about 91% were pathologic 96% of the time (ECE 0.044). Averaging
+log-odds keeps the confident predictions confident. That brings ECE down to 0.029 and log loss from
+0.241 to 0.232, and AUC stays at 0.968 because the ranking barely changes. I chose the logit mean
+after seeing these out-of-fold numbers, but it has nothing to fit, so the comparison is still fair.
+
+The ensemble beats both models on its own because they get different scans wrong. The CNN reads the
+whole 3D shape, and the feature model has more stable probabilities in the middle of the range.
 
 ### Checks against misleading results
 
